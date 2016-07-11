@@ -20,31 +20,38 @@ describe('plugin implementation', function () {
     // stubbing socket.io
     Plugin = proxyquire('../lib/index', {
       'socket.io': portNumber => {
-      emitter = new EventEmitter();
+        emitter = new EventEmitter();
 
-    setPort = portNumber;
+        setPort = portNumber;
 
-    emitter.id = fakeId;
-    emitter.set = () => {};
-    emitter.to = () => {
-      return {
-        emit: (channel, payload) => {
-        messageSent = payload;
-      destination = channel;
-    }
-    };
-    };
+        emitter.id = fakeId;
+        emitter.set = () => {
+        };
+        emitter.to = () => {
+          return {
+            emit: (channel, payload) => {
+              messageSent = payload;
+              destination = channel;
+            }
+          };
+        };
 
-    emitter.sockets = { connected: {} };
-    emitter.sockets.connected[fakeId] = {
-      join: channel => { linkedChannel = channel; },
-    leave: channel => { linkedChannel = channel; },
-    emit: (event, payload) => { notification = {event, payload}; }
-  };
+        emitter.sockets = {connected: {}};
+        emitter.sockets.connected[fakeId] = {
+          join: channel => {
+            linkedChannel = channel;
+          },
+          leave: channel => {
+            linkedChannel = channel;
+          },
+          emit: (event, payload) => {
+            notification = {event, payload};
+          }
+        };
 
-    return emitter;
-  }
-  });
+        return emitter;
+      }
+    });
   });
 
   beforeEach(function () {
@@ -112,7 +119,7 @@ describe('plugin implementation', function () {
 
     it('should manage new connections on a "connection" event', function (done) {
       var
-        stubSocket = { thisIsNot: 'aSocket' };
+        stubSocket = {thisIsNot: 'aSocket'};
 
       this.timeout(50);
 
@@ -132,8 +139,8 @@ describe('plugin implementation', function () {
       emitter.emit('error', 'fake error');
       process.nextTick(() => {
         should(plugin.isDummy).be.true();
-      done();
-    });
+        done();
+      });
     });
   });
 
@@ -148,13 +155,13 @@ describe('plugin implementation', function () {
 
     it('should do nothing if in dummy mode', function () {
       plugin.isDummy = true;
-      plugin.broadcast({channel,payload});
+      plugin.broadcast({channel, payload});
       should(messageSent).be.null();
       should(destination).be.null();
     });
 
     it('should broadcast a message correctly', function () {
-      plugin.broadcast({channel,payload});
+      plugin.broadcast({channel, payload});
       should(messageSent).be.eql(payload);
       should(destination).be.eql(channel);
     });
@@ -171,7 +178,7 @@ describe('plugin implementation', function () {
 
     it('should do nothing if in dummy mode', function () {
       plugin.isDummy = true;
-      plugin.notify({id: fakeId,channel,payload});
+      plugin.notify({id: fakeId, channel, payload});
       should(notification).be.null();
     });
 
@@ -237,18 +244,18 @@ describe('plugin implementation', function () {
       executed,
       disconnected,
       response = {
-          toJson: () => {
+        toJson: () => {
           return serializedResponse;
-  }
-  },
-    context = {
-      constructors: {
-        RequestObject: function (foo) {
-          foo.requestId = fakeRequestId;
-          return foo;
         }
-      }
-    };
+      },
+      context = {
+        constructors: {
+          RequestObject: function (foo) {
+            foo.requestId = fakeRequestId;
+            return foo;
+          }
+        }
+      };
 
     beforeEach(function () {
       context.accessors = {};
@@ -256,30 +263,30 @@ describe('plugin implementation', function () {
         enumerable: true,
         get: function () {
           return {
-              newConnection: (protocol, id) => {
+            newConnection: (protocol, id) => {
               if (!id) {
-            return Promise.rejected(new Error('rejected'));
-          }
+                return Promise.rejected(new Error('rejected'));
+              }
 
-          should(protocol).be.eql(plugin.protocol);
-          should(id).be.eql(emitter.id);
-          connected = true;
-          return Promise.resolve(connection);
-        },
-          execute: (request, conn, cb) => {
-            should(conn).be.eql(connection);
-            executed = true;
+              should(protocol).be.eql(plugin.protocol);
+              should(id).be.eql(emitter.id);
+              connected = true;
+              return Promise.resolve(connection);
+            },
+            execute: (request, conn, cb) => {
+              should(conn).be.eql(connection);
+              executed = true;
 
-            if (request.errorMe) {
-              return cb('errorMe', response);
+              if (request.errorMe) {
+                return cb('errorMe', response);
+              }
+
+              cb(null, response);
+            },
+            removeConnection: () => {
+              disconnected = true;
             }
-
-            cb(null, response);
-          },
-          removeConnection: () => {
-            disconnected = true;
-          }
-        };
+          };
         }
       });
       plugin.init({port: 1234, room: 'foo'}, context, false);
@@ -306,15 +313,15 @@ describe('plugin implementation', function () {
       setTimeout(() => {
         emitter.emit(plugin.config.room, payload);
 
-      setTimeout(() => {
-        should(connected).be.true();
-      should(executed).be.true();
-      should(disconnected).be.false();
-      should(messageSent).be.eql(response);
-      should(destination).be.eql(fakeRequestId);
-      done();
-    }, 40);
-    }, 20);
+        setTimeout(() => {
+          should(connected).be.true();
+          should(executed).be.true();
+          should(disconnected).be.false();
+          should(messageSent).be.eql(response);
+          should(destination).be.eql(fakeRequestId);
+          done();
+        }, 40);
+      }, 20);
     });
 
     it('should forward an error to clients if Kuzzle throws one', function (done) {
@@ -325,15 +332,15 @@ describe('plugin implementation', function () {
       setTimeout(() => {
         emitter.emit(plugin.config.room, payload);
 
-      setTimeout(() => {
-        should(connected).be.true();
-      should(executed).be.true();
-      should(disconnected).be.false();
-      should(messageSent).be.eql(response);
-      should(destination).be.eql(fakeRequestId);
-      done();
-    }, 20);
-    }, 20);
+        setTimeout(() => {
+          should(connected).be.true();
+          should(executed).be.true();
+          should(disconnected).be.false();
+          should(messageSent).be.eql(response);
+          should(destination).be.eql(fakeRequestId);
+          done();
+        }, 20);
+      }, 20);
     });
 
     it('should handle client disconnections', function (done) {
@@ -343,15 +350,15 @@ describe('plugin implementation', function () {
       setTimeout(() => {
         emitter.emit('disconnect', {});
 
-      setTimeout(() => {
-        should(connected).be.true();
-      should(executed).be.false();
-      should(disconnected).be.true();
-      should(messageSent).be.null();
-      should(destination).be.null();
-      done();
-    }, 20);
-    }, 20);
+        setTimeout(() => {
+          should(connected).be.true();
+          should(executed).be.false();
+          should(disconnected).be.true();
+          should(messageSent).be.null();
+          should(destination).be.null();
+          done();
+        }, 20);
+      }, 20);
     });
 
     it('should handle client socket errors', function (done) {
@@ -361,15 +368,15 @@ describe('plugin implementation', function () {
       setTimeout(() => {
         emitter.emit('error', {});
 
-      setTimeout(() => {
-        should(connected).be.true();
-      should(executed).be.false();
-      should(disconnected).be.true();
-      should(messageSent).be.null();
-      should(destination).be.null();
-      done();
-    }, 20);
-    }, 20);
+        setTimeout(() => {
+          should(connected).be.true();
+          should(executed).be.false();
+          should(disconnected).be.true();
+          should(messageSent).be.null();
+          should(destination).be.null();
+          done();
+        }, 20);
+      }, 20);
     });
   });
 });
