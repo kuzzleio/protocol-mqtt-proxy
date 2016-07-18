@@ -5,6 +5,15 @@ before_script:
 - npm install -g grunt-cli
 script:
 - npm test && cat ./coverage/lcov.info | ./node_modules/.bin/codecov
+# https://docs.travis-ci.com/user/languages/javascript-with-nodejs#Node.js-v4-(or-io.js-v3)-compiler-requirements
+env:
+  - CXX=g++-4.8
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - g++-4.8
 notifications:
   webhooks:
     urls:
