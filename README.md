@@ -5,9 +5,9 @@
 # Kuzzle compatibility
 
 Versions 1.x of this plugin are compatible with Kuzzle v1.0.0-RC.4 and upper.
-# Protocol plugin: socket.io
+# Protocol plugin: mqtt
 
-Protocol plugin adding Socket.io support to Kuzzle.
+Protocol plugin adding mqtt support to Kuzzle.
 
 # Manifest
 
