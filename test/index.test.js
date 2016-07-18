@@ -378,7 +378,7 @@ describe('plugin implementation', function () {
     });
   });
 
-  describe('#onConnection', function () {
+  describe('#onDisconnection', function () {
     var
       config = {port: 1234, room: 'aRoom'},
       removeConnectionSpy = sinon.stub().resolves({a: 'connection'}),
