@@ -51,11 +51,6 @@ describe('plugin implementation', function () {
     it('should expose an init function', function () {
       should(plugin.init).be.a.Function();
     });
-
-    it('should expose a hooks object', function () {
-      var hooks = require('../lib/config/hooks');
-      should(plugin.hooks).match(hooks);
-    });
   });
 
   describe('#init', function () {
