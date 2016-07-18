@@ -1,66 +1,50 @@
 var
   should = require('should'),
-  EventEmitter = require('events'),
-  proxyquire = require('proxyquire');
+  proxyquire = require('proxyquire'),
+  sinon = require('sinon');
 
+require('sinon-as-promised')(Promise);
 
 describe('plugin implementation', function () {
   var
     Plugin,
     plugin,
-    emitter,
     setPort,
-    fakeId = 'Verbal Kint',
-    destination,
-    linkedChannel,
-    messageSent,
-    notification;
+    setBackend,
+    onSpy = sinon.spy(),
+    forwardSpy = sinon.spy(),
+    badId = 'aBadId',
+    goodId = 'aGoodId',
+    goodChannel = 'aGoodChannel',
+    badChannel = 'aBadChannel';
 
   before(function () {
     // stubbing socket.io
     Plugin = proxyquire('../lib/index', {
-      'socket.io': portNumber => {
-        emitter = new EventEmitter();
+      'mosca': {
+        Server: function(config) {
+          setPort = config.port;
+          setBackend = config.backend;
 
-        setPort = portNumber;
-
-        emitter.id = fakeId;
-        emitter.set = () => {
-        };
-        emitter.to = () => {
           return {
-            emit: (channel, payload) => {
-              messageSent = payload;
-              destination = channel;
+            on: onSpy,
+            clients: {
+              [goodId]: {
+                forward: forwardSpy
+              }
             }
           };
-        };
-
-        emitter.sockets = {connected: {}};
-        emitter.sockets.connected[fakeId] = {
-          join: channel => {
-            linkedChannel = channel;
-          },
-          leave: channel => {
-            linkedChannel = channel;
-          },
-          emit: (event, payload) => {
-            notification = {event, payload};
-          }
-        };
-
-        return emitter;
+        }
       }
     });
   });
 
   beforeEach(function () {
     setPort = -1;
-    destination = null;
-    messageSent = null;
-    linkedChannel = null;
-    notification = null;
+    setBackend = null;
     plugin = new Plugin();
+    onSpy.reset();
+    forwardSpy.reset();
   });
 
   describe('#general', function () {
@@ -76,7 +60,7 @@ describe('plugin implementation', function () {
 
   describe('#init', function () {
     var
-      config = {port: 1234},
+      config = {port: 1234, room: 'aRoom'},
       context = {foo: 'bar'};
 
     it('should throw an error if no "config" argument has been provided', function (done) {
@@ -96,6 +80,13 @@ describe('plugin implementation', function () {
       should(plugin.isDummy).be.true();
     });
 
+    it('should fallback to dummy-mode if no room configuration has been provided', function () {
+      var ret = plugin.init({port: 1234}, {}, false);
+
+      should(ret).be.false();
+      should(plugin.isDummy).be.true();
+    });
+
     it('should set internal properties correctly', function () {
       var
         ret = plugin.init(config, context, true);
@@ -105,9 +96,10 @@ describe('plugin implementation', function () {
       should(plugin.config).be.eql(config);
       should(plugin.context).be.eql(context);
       should(setPort).be.eql(-1);
+      should(setBackend).be.null();
     });
 
-    it('should start a socket.io broker if not in dummy mode', function () {
+    it('should setup a mosca mqtt broker if not in dummy mode', function () {
       var ret = plugin.init(config, context, false);
 
       should(ret).be.eql(plugin);
@@ -115,268 +107,367 @@ describe('plugin implementation', function () {
       should(plugin.config).be.eql(config);
       should(plugin.context).be.eql(context);
       should(setPort).be.eql(1234);
+      should(onSpy.firstCall.args[0]).be.eql('ready');
+      should(onSpy.firstCall.args[1]).be.Function();
     });
+  });
 
-    it('should manage new connections on a "connection" event', function (done) {
-      var
-        stubSocket = {thisIsNot: 'aSocket'};
+  describe('#setup', function () {
+    var
+      config = {port: 1234, room: 'aRoom'},
+      context = {foo: 'bar'};
 
-      this.timeout(50);
-
-      plugin.newConnection = socket => {
-        should(socket).be.eql(stubSocket);
-        done();
-      };
-
+    it('should bind functions to broker appropriate events', function () {
       plugin.init(config, context, false);
-      emitter.emit('connection', stubSocket);
-    });
-
-    it('should fallback to dummy-mode if the broker is unable to start', function (done) {
-      this.timeout(50);
-
-      plugin.init(config, context, false);
-      emitter.emit('error', 'fake error');
-      process.nextTick(() => {
-        should(plugin.isDummy).be.true();
-        done();
-      });
+      plugin.setup();
+      should(onSpy.getCall(0).args[0]).be.eql('ready');
+      should(onSpy.getCall(0).args[1]).be.Function();
+      should(onSpy.getCall(1).args[0]).be.eql('clientConnected');
+      should(onSpy.getCall(1).args[1]).be.Function();
+      should(onSpy.getCall(2).args[0]).be.eql('clientDisconnecting');
+      should(onSpy.getCall(2).args[1]).be.Function();
+      should(onSpy.getCall(3).args[0]).be.eql('clientDisconnected');
+      should(onSpy.getCall(3).args[1]).be.Function();
+      should(onSpy.getCall(4).args[0]).be.eql('published');
+      should(onSpy.getCall(4).args[1]).be.Function();
     });
   });
 
   describe('#broadcast', function () {
     var
-      channel = 'foobar',
-      payload = {foo: 'bar'};
+      config = {port: 1234, room: 'aRoom'},
+      context = {foo: 'bar'};
 
-    beforeEach(function () {
-      plugin.init({port: 1234}, {}, false);
+    it('should do nothing if in dummy-mode', function () {
+      plugin.init({}, {}, true);
+      should(plugin.broadcast({})).be.false();
     });
 
-    it('should do nothing if in dummy mode', function () {
-      plugin.isDummy = true;
-      plugin.broadcast({channel, payload});
-      should(messageSent).be.null();
-      should(destination).be.null();
+    it('should do nothing if channel does not exist', function () {
+      plugin.init(config, context, false);
+      plugin.broadcast({
+        channel: badChannel
+      });
+      should(forwardSpy.callCount).be.eql(0);
     });
 
-    it('should broadcast a message correctly', function () {
-      plugin.broadcast({channel, payload});
-      should(messageSent).be.eql(payload);
-      should(destination).be.eql(channel);
+    it('should do nothing if connection does not exist', function () {
+      plugin.init(config, context, false);
+      plugin.channels = {
+        [goodChannel]: [goodId]
+      };
+      plugin.broadcast({
+        channel: goodChannel
+      });
+      should(forwardSpy.callCount).be.eql(0);
+    });
+
+    it('should call forward if all conditions are met', function () {
+      plugin.init(config, context, false);
+      plugin.channels = {
+        [goodChannel]: [goodId]
+      };
+      plugin.connectionPool = {
+        [goodId]: true
+      };
+      plugin.broadcast({
+        channel: goodChannel,
+        payload: 'aPayload'
+      });
+      should(forwardSpy.callCount).be.eql(1);
+      should(forwardSpy.firstCall.args).be.deepEqual([
+        config.room,
+        JSON.stringify('aPayload'),
+        {},
+        config.room,
+        0
+      ]);
     });
   });
 
   describe('#notify', function () {
     var
-      channel = 'foobar',
-      payload = {foo: 'bar'};
+      config = {port: 1234, room: 'aRoom'},
+      context = {foo: 'bar'};
 
-    beforeEach(function () {
-      plugin.init({port: 1234}, {}, false);
+    it('should do nothing if in dummy-mode', function () {
+      plugin.init({}, {}, true);
+      should(plugin.notify({})).be.false();
     });
 
-    it('should do nothing if in dummy mode', function () {
-      plugin.isDummy = true;
-      plugin.notify({id: fakeId, channel, payload});
-      should(notification).be.null();
+    it('should do nothing if id does not exist', function () {
+      plugin.init(config, context, false);
+      plugin.notify({
+        id: badId
+      });
+      should(forwardSpy.callCount).be.eql(0);
     });
 
-    it('should notify a client correctly', function () {
-      plugin.notify({id: fakeId, channel, payload});
-      should(notification).not.be.null();
-      should(notification.payload).be.eql(payload);
-      should(notification.event).be.eql(channel);
+    it('should call forward if all conditions are met', function () {
+      plugin.init(config, context, false);
+      plugin.connectionPool = {
+        [goodId]: true
+      };
+      plugin.notify({
+        id: goodId,
+        payload: 'aPayload'
+      });
+      should(forwardSpy.callCount).be.eql(1);
+      should(forwardSpy.firstCall.args).be.deepEqual([
+        config.room,
+        JSON.stringify('aPayload'),
+        {},
+        config.room,
+        0
+      ]);
     });
   });
 
   describe('#joinChannel', function () {
-    beforeEach(function () {
-      plugin.init({port: 1234}, {}, false);
+    var
+      config = {port: 1234, room: 'aRoom'},
+      context = {foo: 'bar'};
+
+    it('should do nothing if in dummy-mode', function () {
+      plugin.init({}, {}, true);
+      should(plugin.joinChannel({})).be.false();
     });
 
-    it('should do nothing if in dummy mode', function () {
-      plugin.isDummy = true;
-      plugin.joinChannel({id: fakeId, channel: 'foo'});
-      should(linkedChannel).be.null();
+    it('should do nothing if id does not exist', function () {
+      plugin.init(config, context, false);
+      plugin.joinChannel({
+        id: badId
+      });
+      should(plugin.channels).be.deepEqual({});
     });
 
-    it('should link an id with a channel', function () {
-      plugin.joinChannel({id: fakeId, channel: 'foo'});
-      should(linkedChannel).be.eql('foo');
+    it('should add clientId to the channel if conditions are met', function () {
+      plugin.init(config, context, false);
+      plugin.channels = {
+        [goodChannel]: []
+      };
+      plugin.connectionPool = {
+        [goodId]: true
+      };
+      plugin.joinChannel({
+        id: goodId,
+        channel: goodChannel
+      });
+      should(plugin.channels).be.deepEqual({
+        [goodChannel]: [goodId]
+      });
     });
 
-    it('should do nothing if the id is unknown', function () {
-      plugin.joinChannel({id: 'some other id', channel: 'foo'});
-      should(linkedChannel).be.null();
+    it('should create the channel entry add clientId to the channel if conditions are met and channel did not exist before', function () {
+      plugin.init(config, context, false);
+      plugin.connectionPool = {
+        [goodId]: true
+      };
+      plugin.joinChannel({
+        id: goodId,
+        channel: goodChannel
+      });
+      should(plugin.channels).be.deepEqual({
+        [goodChannel]: [goodId]
+      });
     });
   });
 
   describe('#leaveChannel', function () {
-    beforeEach(function () {
-      plugin.init({port: 1234}, {}, false);
+    var
+      config = {port: 1234, room: 'aRoom'},
+      context = {foo: 'bar'};
+
+    it('should do nothing if in dummy-mode', function () {
+      plugin.init({}, {}, true);
+      should(plugin.leaveChannel({})).be.false();
     });
 
-    it('should do nothing if in dummy mode', function () {
-      plugin.isDummy = true;
-      plugin.leaveChannel({id: fakeId, channel: 'foo'});
-      should(linkedChannel).be.null();
+    it('should do nothing if id does not exist', function () {
+      plugin.init(config, context, false);
+      plugin.leaveChannel({
+        id: badId
+      });
+      should(plugin.channels).be.deepEqual({});
     });
 
-    it('should link an id with a channel', function () {
-      plugin.leaveChannel({id: fakeId, channel: 'foo'});
-      should(linkedChannel).be.eql('foo');
+    it('should do nothing if channel does not exist', function () {
+      plugin.init(config, context, false);
+      plugin.connectionPool = {
+        [goodId]: true
+      };
+      plugin.leaveChannel({
+        id: goodId
+      });
+      should(plugin.channels).be.deepEqual({});
     });
 
-    it('should do nothing if the id is unknown', function () {
-      plugin.leaveChannel({id: 'some other id', channel: 'foo'});
-      should(linkedChannel).be.null();
+    it('should do nothing if id is not in channel', function () {
+      plugin.init(config, context, false);
+      plugin.connectionPool = {
+        [goodId]: true
+      };
+      plugin.channels = {
+        [goodChannel]: [badId]
+      };
+      plugin.leaveChannel({
+        id: goodId,
+        channel: goodChannel
+      });
+      should(plugin.channels).be.deepEqual({
+        [goodChannel]: [badId]
+      });
+    });
+
+    it('should remove id from channel if conditions are met', function () {
+      plugin.init(config, context, false);
+      plugin.connectionPool = {
+        [goodId]: true
+      };
+      plugin.channels = {
+        [goodChannel]: [goodId, badId]
+      };
+      plugin.leaveChannel({
+        id: goodId,
+        channel: goodChannel
+      });
+      should(plugin.channels).be.deepEqual({
+        [goodChannel]: [badId]
+      });
+    });
+
+    it('should remove id from channel if conditions are met and remove channel if it is empty', function () {
+      plugin.init(config, context, false);
+      plugin.connectionPool = {
+        [goodId]: true
+      };
+      plugin.channels = {
+        [goodChannel]: [goodId]
+      };
+      plugin.leaveChannel({
+        id: goodId,
+        channel: goodChannel
+      });
+      should(plugin.channels).be.deepEqual({});
     });
   });
 
-  describe('#newConnection', function () {
-    // some heavy stubbing here...
+  describe('#onConnection', function () {
     var
-      connection = {foo: 'bar'},
-      fakeRequestId = 'fakeRequestId',
-      serializedResponse = {bar: 'foo'},
-      connected,
-      executed,
-      disconnected,
-      response = {
-        toJson: () => {
-          return serializedResponse;
-        }
-      },
-      context = {
-        constructors: {
-          RequestObject: function (foo) {
-            foo.requestId = fakeRequestId;
-            return foo;
-          }
-        }
-      };
+      config = {port: 1234, room: 'aRoom'},
+      newConnectionSpy = sinon.stub().resolves({a: 'connection'}),
+      context = {accessors: {router: {newConnection: newConnectionSpy}}};
 
-    beforeEach(function () {
-      context.accessors = {};
-      Object.defineProperty(context.accessors, 'router', {
-        enumerable: true,
-        get: function () {
-          return {
-            newConnection: (protocol, id) => {
-              if (!id) {
-                return Promise.rejected(new Error('rejected'));
-              }
+    beforeEach(() => {
+      newConnectionSpy.reset();
+    });
 
-              should(protocol).be.eql(plugin.protocol);
-              should(id).be.eql(emitter.id);
-              connected = true;
-              return Promise.resolve(connection);
-            },
-            execute: (request, conn, cb) => {
-              should(conn).be.eql(connection);
-              executed = true;
-
-              if (request.errorMe) {
-                return cb('errorMe', response);
-              }
-
-              cb(null, response);
-            },
-            removeConnection: () => {
-              disconnected = true;
-            }
-          };
-        }
+    it('should call router newConnection and treat its result', function (done) {
+      this.timeout(100);
+      plugin.init(config, context, false);
+      plugin.onConnection({
+        id: goodId
       });
-      plugin.init({port: 1234, room: 'foo'}, context, false);
-      connected = executed = disconnected = false;
-    });
-
-    it('should do nothing if in dummy mode', function () {
-      plugin.isDummy = true;
-
-      should(plugin.newConnection(emitter)).be.false();
-      should(connected).be.false();
-    });
-
-    it('should initialize a new connection', function () {
-      plugin.newConnection(emitter);
-      should(connected).be.true();
-    });
-
-    it('should listen to incoming requests and forward them to Kuzzle', function (done) {
-      var payload = {fake: 'data'};
-      this.timeout(100);
-      plugin.newConnection(emitter);
-
       setTimeout(() => {
-        emitter.emit(plugin.config.room, payload);
+        try {
+          should(plugin.connectionPool).be.deepEqual({
+            [goodId]: {a: 'connection'}
+          });
 
-        setTimeout(() => {
-          should(connected).be.true();
-          should(executed).be.true();
-          should(disconnected).be.false();
-          should(messageSent).be.eql(response);
-          should(destination).be.eql(fakeRequestId);
           done();
-        }, 40);
+        }
+        catch (e) {
+          done(e);
+        }
       }, 20);
     });
+  });
 
-    it('should forward an error to clients if Kuzzle throws one', function (done) {
-      var payload = {errorMe: true};
-      this.timeout(100);
-      plugin.newConnection(emitter);
+  describe('#onConnection', function () {
+    var
+      config = {port: 1234, room: 'aRoom'},
+      removeConnectionSpy = sinon.stub().resolves({a: 'connection'}),
+      context = {accessors: {router: {removeConnection: removeConnectionSpy}}};
 
-      setTimeout(() => {
-        emitter.emit(plugin.config.room, payload);
-
-        setTimeout(() => {
-          should(connected).be.true();
-          should(executed).be.true();
-          should(disconnected).be.false();
-          should(messageSent).be.eql(response);
-          should(destination).be.eql(fakeRequestId);
-          done();
-        }, 20);
-      }, 20);
+    beforeEach(() => {
+      removeConnectionSpy.reset();
     });
 
-    it('should handle client disconnections', function (done) {
+    it('should call router removeConnection and remove connection', function () {
       this.timeout(100);
-      plugin.newConnection(emitter);
-
-      setTimeout(() => {
-        emitter.emit('disconnect', {});
-
-        setTimeout(() => {
-          should(connected).be.true();
-          should(executed).be.false();
-          should(disconnected).be.true();
-          should(messageSent).be.null();
-          should(destination).be.null();
-          done();
-        }, 20);
-      }, 20);
+      plugin.init(config, context, false);
+      plugin.connectionPool = {
+        [goodId]: true
+      };
+      plugin.onDisconnection({
+        id: goodId
+      });
+      should(plugin.connectionPool).be.deepEqual({});
     });
 
-    it('should handle client socket errors', function (done) {
+    it('should do nothing if id does not exist', function () {
       this.timeout(100);
-      plugin.newConnection(emitter);
+      plugin.init(config, context, false);
+      plugin.connectionPool = {
+        [goodId]: true
+      };
+      plugin.onDisconnection({
+        id: badId
+      });
+      should(plugin.connectionPool).be.deepEqual({[goodId]: true});
+    });
+  });
 
-      setTimeout(() => {
-        emitter.emit('error', {});
+  describe('#onMessage', function () {
+    var
+      config = {port: 1234, room: 'aRoom'},
+      fakeRequestObject = {aRequest: 'Object'},
+      requestObjectStub = sinon.stub().returns(fakeRequestObject),
+      executeStub = sinon.stub().callsArg(2),
+      context = {constructors: {RequestObject: requestObjectStub}, accessors: {router: {execute: executeStub}}};
 
-        setTimeout(() => {
-          should(connected).be.true();
-          should(executed).be.false();
-          should(disconnected).be.true();
-          should(messageSent).be.null();
-          should(destination).be.null();
-          done();
-        }, 20);
-      }, 20);
+    beforeEach(() => {
+      requestObjectStub.reset();
+      executeStub.reset();
+    });
+
+    it('should do nothing if the packet has not the good room', function () {
+      plugin.init(config, context, false);
+      plugin.onMessage({fake: 'packet'}, {id: goodId});
+      should(executeStub.callCount).be.eql(0);
+      should(requestObjectStub.callCount).be.eql(0);
+    });
+
+    it('should do nothing if the client is unknown', function () {
+      plugin.init(config, context, false);
+      plugin.connectionPool = {
+        [goodId]: true
+      };
+      plugin.onMessage({topic: config.room, payload: 'myPayload'}, {id: badId});
+      should(executeStub.callCount).be.eql(0);
+      should(requestObjectStub.callCount).be.eql(0);
+    });
+
+    it('should execute the request if client and packet are ok', function () {
+      var forwardStub = sinon.stub();
+
+      plugin.init(config, context, false);
+      plugin.connectionPool = {
+        [goodId]: 'aConnection'
+      };
+      plugin.onMessage({topic: config.room, payload: new Buffer('"aPayload"')}, {id: goodId, forward: forwardStub});
+      should(requestObjectStub.callCount).be.eql(1);
+      should(requestObjectStub.firstCall.args).be.deepEqual(['aPayload', {}, 'mqtt']);
+      should(executeStub.callCount).be.eql(1);
+      should(executeStub.firstCall.args[0]).be.deepEqual(fakeRequestObject);
+      should(executeStub.firstCall.args[1]).be.eql('aConnection');
+      should(executeStub.firstCall.args[2]).be.Function();
+      should(forwardStub.callCount).be.eql(1);
+      should(forwardStub.firstCall.args[0]).be.eql(config.room);
+      should(forwardStub.firstCall.args[1]).be.eql(JSON.stringify(undefined));
+      should(forwardStub.firstCall.args[2]).be.deepEqual({});
+      should(forwardStub.firstCall.args[3]).be.eql(config.room);
+      should(forwardStub.firstCall.args[4]).be.eql(0);
     });
   });
 });

@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "async": "^2.0.0-rc.6",
-    "mosca": "^2.0.1"
+    "mosca": "^2.0.1",
+    "proxyquire": "^1.7.10"
   },
   "repository": {
     "type": "git",
