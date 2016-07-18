@@ -21,8 +21,7 @@
   },
   "dependencies": {
     "async": "^2.0.0-rc.6",
-    "mosca": "^2.0.1",
-    "proxyquire": "^1.7.10"
+    "mosca": "^2.0.1"
   },
   "repository": {
     "type": "git",
@@ -38,7 +37,8 @@
     "should": "9.0.2",
     "should-sinon": "0.0.5",
     "sinon": "1.17.4",
-    "sinon-as-promised": "^4.0.0"
+    "sinon-as-promised": "^4.0.0",
+    "proxyquire": "^1.7.10"
   },
   "engines": {
     "node": ">= 4.4.5",
