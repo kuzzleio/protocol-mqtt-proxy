@@ -1,7 +1,7 @@
 {
   "name": "kuzzle-plugin-mqtt",
   "author": "The Kuzzle Team <support@kuzzle.io>",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Kuzzle protocol plugin MQTT",
   "main": "./lib/index.js",
   "scripts": {
