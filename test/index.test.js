@@ -173,7 +173,7 @@ describe('plugin implementation', function () {
       should(forwardSpy.callCount).be.eql(1);
       should(forwardSpy.firstCall.args).be.deepEqual([
         config.room,
-        JSON.stringify({a: 'payload', channel: goodChannel}),
+        JSON.stringify({a: 'payload', room: goodChannel}),
         {},
         config.room,
         0
@@ -212,7 +212,7 @@ describe('plugin implementation', function () {
       should(forwardSpy.callCount).be.eql(1);
       should(forwardSpy.firstCall.args).be.deepEqual([
         config.room,
-        JSON.stringify({a: 'payload', channel: goodChannel}),
+        JSON.stringify({a: 'payload', room: goodChannel}),
         {},
         config.room,
         0
