@@ -152,7 +152,8 @@ describe('plugin implementation', function () {
         [goodChannel]: [goodId]
       };
       plugin.broadcast({
-        channel: goodChannel
+        channel: goodChannel,
+        payload: {}
       });
       should(forwardSpy.callCount).be.eql(0);
     });
@@ -167,12 +168,12 @@ describe('plugin implementation', function () {
       };
       plugin.broadcast({
         channel: goodChannel,
-        payload: 'aPayload'
+        payload: {a: 'payload'}
       });
       should(forwardSpy.callCount).be.eql(1);
       should(forwardSpy.firstCall.args).be.deepEqual([
         config.room,
-        JSON.stringify('aPayload'),
+        JSON.stringify({a: 'payload', channel: goodChannel}),
         {},
         config.room,
         0
@@ -205,12 +206,13 @@ describe('plugin implementation', function () {
       };
       plugin.notify({
         id: goodId,
-        payload: 'aPayload'
+        channel: goodChannel,
+        payload: {a: 'payload'}
       });
       should(forwardSpy.callCount).be.eql(1);
       should(forwardSpy.firstCall.args).be.deepEqual([
         config.room,
-        JSON.stringify('aPayload'),
+        JSON.stringify({a: 'payload', channel: goodChannel}),
         {},
         config.room,
         0
