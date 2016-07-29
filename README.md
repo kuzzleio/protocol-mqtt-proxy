@@ -22,9 +22,22 @@ You can override the configuration in your `config/customPlugins.json` file in K
 | ``port`` | ``1883`` | Integer > 1024 | Network port to open |
 | ``room`` | ``"Kuzzle"`` | String | Name of the room listened by the plugin |
 
+# How to use
+
+Kuzzle may send a multitude of messages to a client, either to respond to multiple asynchronous requests, or to notify events on client's subscriptions.  
+To allow a client to link a response to a request or to a subscription, Kuzzle normally features a room system for protocols allowing it.
+
+Since Kuzzle has its own subscription system, all messages sent through this protocol contain an additional `room` attribute at the root of the message structure. Clients connecting to Kuzzle using this protocol must use this field to dispatch incoming messages to the right parts of an application.
+
+This `room` attribute is either:
+
+* a request `requestId`, for request responses
+* a `channel` (see [Kuzzle subscriptions](http://kuzzle.io/api-reference/#on)), for notifications on subscriptions
+
+
 # How to create a plugin
 
-See [Kuzzle documentation](https://github.com/kuzzleio/kuzzle/blob/master/docs/plugins.md) about plugin for more information about how to create your own plugin.
+See [Kuzzle documentation](http://kuzzle.io/guide/#plugins) about plugin for more information about how to create your own plugin.
 
 # About Kuzzle
 
