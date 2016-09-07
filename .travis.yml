@@ -5,15 +5,14 @@ before_script:
 - npm install -g grunt-cli
 script:
 - npm test && cat ./coverage/lcov.info | ./node_modules/.bin/codecov
-# https://docs.travis-ci.com/user/languages/javascript-with-nodejs#Node.js-v4-(or-io.js-v3)-compiler-requirements
 env:
-  - CXX=g++-4.8
+- CXX=g++-4.8
 addons:
   apt:
     sources:
-      - ubuntu-toolchain-r-test
+    - ubuntu-toolchain-r-test
     packages:
-      - g++-4.8
+    - g++-4.8
 notifications:
   webhooks:
     urls:
@@ -22,3 +21,9 @@ notifications:
     on_failure: always
     on_start: never
   email: false
+deploy:
+  api_key:
+    secure: ksInRuUgCeryGzfzRjZ9yGU7KoFR8bCzevIwbAccTJ5W6vx5qcI6TbnghjIKPjSSkcCPKM/KgGUgrZruGpdfZGiDPSAHsExbkcsZy1jt91kLSj3DDVjYJH4JduxiWqHTxXz1Nr7BTsKQDxJ+od18zONsrJvP5xU2s4bwc4ShW4r71J5HwBFNX2izxd2QEjeYBXoYFWJRNp+ZVcFY0DwmYn9A2OftSQbgEJSKsWi7EWZBAiB6vdq8pVkTvrxg0fZwJR7mZfspe6F8xSoemYAOZoPNqZlU1A10Jdidj6oMaFSycKv9xt4U7Y64Z6YRkgeXoQBz0C1GhCUsnwhIhkqaHRTaSjx1l468dDDir96074f2X/zUcGUTqKtWC9P20wY5fUnvjXgnuznnwTJV/q5Ase4sNKxkkDl01euXDAcwxo7XvvXVd690xQ9mNeE0ojNwSbQB+XnfhRgOyyq2b9D8TeHdojlI4kpS+XKjdBQHn+TfYcUH8mb06K4dHWbCvi8HHw/ZLCSI4/7qHYhbA1MgQ2v2fazlxuQ9jowOQPWHrXAn6K0k4En3L4TqttbfCVJJkOQGips6sEInfkCpWoleg8Qxjpb36lZxe4mOQLoGVPGKpICS88Kvp4f/jqx8l88XzI8X0n5u9fqMmchrt0cvj3dbOYQpItqlOxS4gC6Vgv8=
+  on:
+    repo: kuzzleio/kuzzle-plugin-mqtt
+    branch: master
