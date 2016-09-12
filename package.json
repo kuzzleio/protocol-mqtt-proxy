@@ -11,7 +11,6 @@
   },
   "pluginInfo": {
     "defaultConfig": {
-      "loadedBy": "server",
       "port": 1883,
       "room": "Kuzzle/request",
       "responseRoom": "Kuzzle/response"
