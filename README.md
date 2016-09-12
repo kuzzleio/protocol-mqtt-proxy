@@ -7,7 +7,7 @@
 Versions 1.x of this plugin are compatible with Kuzzle v1.0.0-RC.4 and upper.
 # Protocol plugin: mqtt
 
-Protocol plugin adding mqtt support to Kuzzle.
+Protocol plugin adding MQTT support to Kuzzle.
 
 # Manifest
 
