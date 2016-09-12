@@ -13,6 +13,7 @@ describe('plugin implementation', function () {
     setBackend,
     onSpy = sinon.spy(),
     forwardSpy = sinon.spy(),
+    publishSpy = sinon.spy(),
     badId = 'aBadId',
     goodId = 'aGoodId',
     goodChannel = 'aGoodChannel',
@@ -28,6 +29,7 @@ describe('plugin implementation', function () {
 
           return {
             on: onSpy,
+            publish: publishSpy,
             clients: {
               [goodId]: {
                 forward: forwardSpy
@@ -45,6 +47,7 @@ describe('plugin implementation', function () {
     plugin = new Plugin();
     onSpy.reset();
     forwardSpy.reset();
+    publishSpy.reset();
   });
 
   describe('#general', function () {
@@ -138,46 +141,17 @@ describe('plugin implementation', function () {
       should(plugin.broadcast({})).be.false();
     });
 
-    it('should do nothing if channel does not exist', function () {
-      plugin.init(config, context, false);
-      plugin.broadcast({
-        channel: badChannel
-      });
-      should(forwardSpy.callCount).be.eql(0);
-    });
-
-    it('should do nothing if connection does not exist', function () {
-      plugin.init(config, context, false);
-      plugin.channels = {
-        [goodChannel]: [goodId]
-      };
-      plugin.broadcast({
-        channel: goodChannel,
-        payload: {}
-      });
-      should(forwardSpy.callCount).be.eql(0);
-    });
-
     it('should call forward if all conditions are met', function () {
       plugin.init(config, context, false);
-      plugin.channels = {
-        [goodChannel]: [goodId]
-      };
       plugin.connectionPool = {
-        [goodId]: true
+        [goodId]: {connection: 'aConnection', alive: true}
       };
       plugin.broadcast({
-        channel: goodChannel,
+        channels: [goodChannel],
         payload: {a: 'payload'}
       });
-      should(forwardSpy.callCount).be.eql(1);
-      should(forwardSpy.firstCall.args).be.deepEqual([
-        config.room,
-        JSON.stringify({a: 'payload', room: goodChannel}),
-        {},
-        config.room,
-        0
-      ]);
+      should(publishSpy.callCount).be.eql(1);
+      should(publishSpy.firstCall.args[0]).be.deepEqual({topic: goodChannel, payload: JSON.stringify({a: 'payload'})});
     });
   });
 
@@ -202,150 +176,21 @@ describe('plugin implementation', function () {
     it('should call forward if all conditions are met', function () {
       plugin.init(config, context, false);
       plugin.connectionPool = {
-        [goodId]: true
+        [goodId]: {connection: 'aConnection', alive: true}
       };
       plugin.notify({
         id: goodId,
-        channel: goodChannel,
+        channels: [goodChannel],
         payload: {a: 'payload'}
       });
       should(forwardSpy.callCount).be.eql(1);
       should(forwardSpy.firstCall.args).be.deepEqual([
-        config.room,
-        JSON.stringify({a: 'payload', room: goodChannel}),
+        goodChannel,
+        JSON.stringify({a: 'payload'}),
         {},
-        config.room,
+        goodChannel,
         0
       ]);
-    });
-  });
-
-  describe('#joinChannel', function () {
-    var
-      config = {port: 1234, room: 'aRoom'},
-      context = {foo: 'bar'};
-
-    it('should do nothing if in dummy-mode', function () {
-      plugin.init({}, {}, true);
-      should(plugin.joinChannel({})).be.false();
-    });
-
-    it('should do nothing if id does not exist', function () {
-      plugin.init(config, context, false);
-      plugin.joinChannel({
-        id: badId
-      });
-      should(plugin.channels).be.deepEqual({});
-    });
-
-    it('should add clientId to the channel if conditions are met', function () {
-      plugin.init(config, context, false);
-      plugin.channels = {
-        [goodChannel]: []
-      };
-      plugin.connectionPool = {
-        [goodId]: true
-      };
-      plugin.joinChannel({
-        id: goodId,
-        channel: goodChannel
-      });
-      should(plugin.channels).be.deepEqual({
-        [goodChannel]: [goodId]
-      });
-    });
-
-    it('should create the channel entry add clientId to the channel if conditions are met and channel did not exist before', function () {
-      plugin.init(config, context, false);
-      plugin.connectionPool = {
-        [goodId]: true
-      };
-      plugin.joinChannel({
-        id: goodId,
-        channel: goodChannel
-      });
-      should(plugin.channels).be.deepEqual({
-        [goodChannel]: [goodId]
-      });
-    });
-  });
-
-  describe('#leaveChannel', function () {
-    var
-      config = {port: 1234, room: 'aRoom'},
-      context = {foo: 'bar'};
-
-    it('should do nothing if in dummy-mode', function () {
-      plugin.init({}, {}, true);
-      should(plugin.leaveChannel({})).be.false();
-    });
-
-    it('should do nothing if id does not exist', function () {
-      plugin.init(config, context, false);
-      plugin.leaveChannel({
-        id: badId
-      });
-      should(plugin.channels).be.deepEqual({});
-    });
-
-    it('should do nothing if channel does not exist', function () {
-      plugin.init(config, context, false);
-      plugin.connectionPool = {
-        [goodId]: true
-      };
-      plugin.leaveChannel({
-        id: goodId
-      });
-      should(plugin.channels).be.deepEqual({});
-    });
-
-    it('should do nothing if id is not in channel', function () {
-      plugin.init(config, context, false);
-      plugin.connectionPool = {
-        [goodId]: true
-      };
-      plugin.channels = {
-        [goodChannel]: [badId]
-      };
-      plugin.leaveChannel({
-        id: goodId,
-        channel: goodChannel
-      });
-      should(plugin.channels).be.deepEqual({
-        [goodChannel]: [badId]
-      });
-    });
-
-    it('should remove id from channel if conditions are met', function () {
-      plugin.init(config, context, false);
-      plugin.connectionPool = {
-        [goodId]: true
-      };
-      plugin.channels = {
-        [goodChannel]: [goodId, badId]
-      };
-      plugin.leaveChannel({
-        id: goodId,
-        channel: goodChannel
-      });
-      should(plugin.channels).be.deepEqual({
-        [goodChannel]: [badId]
-      });
-    });
-
-    it('should remove id from channel if conditions are met and remove channel if it is empty', function () {
-      plugin.init(config, context, false);
-      plugin.connectionPool = {
-        [goodId]: true
-      };
-      plugin.channels = {
-        [goodChannel]: [goodId]
-      };
-      plugin.leaveChannel({
-        id: goodId,
-        channel: goodChannel
-      });
-      should(plugin.channels).be.deepEqual({});
     });
   });
 
@@ -368,7 +213,7 @@ describe('plugin implementation', function () {
       setTimeout(() => {
         try {
           should(plugin.connectionPool).be.deepEqual({
-            [goodId]: {a: 'connection'}
+            [goodId]: {connection: {a: 'connection'}, alive: true}
           });
 
           done();
@@ -394,7 +239,7 @@ describe('plugin implementation', function () {
       this.timeout(100);
       plugin.init(config, context, false);
       plugin.connectionPool = {
-        [goodId]: true
+        [goodId]: {connection: 'aConnection', alive: true}
       };
       plugin.onDisconnection({
         id: goodId
@@ -406,21 +251,21 @@ describe('plugin implementation', function () {
       this.timeout(100);
       plugin.init(config, context, false);
       plugin.connectionPool = {
-        [goodId]: true
+        [goodId]: {connection: 'aConnection', alive: true}
       };
       plugin.onDisconnection({
         id: badId
       });
-      should(plugin.connectionPool).be.deepEqual({[goodId]: true});
+      should(plugin.connectionPool).be.deepEqual({[goodId]: {connection: 'aConnection', alive: true}});
     });
   });
 
   describe('#onMessage', function () {
     var
-      config = {port: 1234, room: 'aRoom'},
-      fakeRequestObject = {aRequest: 'Object'},
+      config = {port: 1234, responseRoom: 'foo', room: 'bar'},
+      fakeRequestObject = {aRequest: 'Object', requestId: 'foobar'},
       requestObjectStub = sinon.stub().returns(fakeRequestObject),
-      executeStub = sinon.stub().callsArg(2),
+      executeStub = sinon.stub().callsArgWith(2, null, fakeRequestObject),
       context = {constructors: {RequestObject: requestObjectStub}, accessors: {router: {execute: executeStub}}};
 
     beforeEach(() => {
@@ -438,7 +283,7 @@ describe('plugin implementation', function () {
     it('should do nothing if the client is unknown', function () {
       plugin.init(config, context, false);
       plugin.connectionPool = {
-        [goodId]: true
+        [goodId]: {connection: 'aConnection', alive: true}
       };
       plugin.onMessage({topic: config.room, payload: 'myPayload'}, {id: badId});
       should(executeStub.callCount).be.eql(0);
@@ -450,8 +295,9 @@ describe('plugin implementation', function () {
 
       plugin.init(config, context, false);
       plugin.connectionPool = {
-        [goodId]: 'aConnection'
+        [goodId]: {connection: 'aConnection', alive: true}
       };
+
       plugin.onMessage({topic: config.room, payload: new Buffer('"aPayload"')}, {id: goodId, forward: forwardStub});
       should(requestObjectStub.callCount).be.eql(1);
       should(requestObjectStub.firstCall.args).be.deepEqual(['aPayload', {}, 'mqtt']);
@@ -460,10 +306,10 @@ describe('plugin implementation', function () {
       should(executeStub.firstCall.args[1]).be.eql('aConnection');
       should(executeStub.firstCall.args[2]).be.Function();
       should(forwardStub.callCount).be.eql(1);
-      should(forwardStub.firstCall.args[0]).be.eql(config.room);
-      should(forwardStub.firstCall.args[1]).be.eql(JSON.stringify(undefined));
+      should(forwardStub.firstCall.args[0]).be.eql(config.responseRoom);
+      should(forwardStub.firstCall.args[1]).be.eql(JSON.stringify(fakeRequestObject));
       should(forwardStub.firstCall.args[2]).be.deepEqual({});
-      should(forwardStub.firstCall.args[3]).be.eql(config.room);
+      should(forwardStub.firstCall.args[3]).be.eql(config.responseRoom);
       should(forwardStub.firstCall.args[4]).be.eql(0);
     });
   });
