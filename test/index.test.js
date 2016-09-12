@@ -16,9 +16,8 @@ describe('plugin implementation', function () {
     publishSpy = sinon.spy(),
     badId = 'aBadId',
     goodId = 'aGoodId',
-    goodChannel = 'aGoodChannel',
-    badChannel = 'aBadChannel';
-
+    goodChannel = 'aGoodChannel';
+    
   before(function () {
     // stubbing socket.io
     Plugin = proxyquire('../lib/index', {
