@@ -9,6 +9,11 @@
 - [Manifest](#manifest)
 - [Configuration](#configuration)
 - [How to use](#how-to-use)
+  - [Sending an API request and getting the response](#sending-an-api-request-and-getting-the-response)
+  - [Using Kuzzle subscriptions](#using-kuzzle-subscriptions)
+- [Authorizations](#authorizations)
+  - [Publishing](#publishing)
+  - [Subscribing](#subscribing)
 - [How to create a plugin](#how-to-create-a-plugin)
 - [About Kuzzle](#about-kuzzle)
 
@@ -31,9 +36,10 @@ You can override the configuration in your `config/customPlugins.json` file in K
 
 | Name | Default value | Type | Description                 |
 |------|---------------|-----------|-----------------------------|
+| ``allowPubSub`` | `false` | Boolean | Allow MQTT pub/sub capabilities or restrict to Kuzzle requests only | 
 | ``port`` | ``1883`` | Integer > 1024 | Network port to open |
-| ``room`` | ``"Kuzzle/request"`` | String | Name of the room listened by the plugin for requests |
-| ``responseRoom`` | ``"Kuzzle/response"`` | String | Name of the room clients should listen to get requests result |
+| ``requestTopic`` | ``"Kuzzle/request"`` | String | Name of the topic listened by the plugin for requests |
+| ``responseTopic`` | ``"Kuzzle/response"`` | String | Name of the topic clients should listen to get requests result |
 
 # How to use
 
@@ -129,6 +135,21 @@ client.on('message', (topic, raw) => {
   }
 });
 ```
+
+# Authorizations
+
+## Publishing
+
+If ``allowPubSub`` is set to `false`, clients can only publish to the `requestTopic` topic (defaults to `Kuzzle/request`).
+
+If `allowPubSub` is set to `true`, clients are only forbidden to publish to the `responseTopic` topic (defaults to `Kuzzle/response`).
+
+If a client tries to publish to an unauthorized topic, his connection will immediately be shut down by the server.
+
+## Subscribing
+
+Subscription attempts to the ``requestTopic`` topic (defaults: `Kuzzle/request`) are ignored: client requests can only be listened by the MQTT server.
+
 
 # How to create a plugin
 

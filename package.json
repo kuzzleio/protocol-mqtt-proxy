@@ -12,8 +12,9 @@
   "pluginInfo": {
     "defaultConfig": {
       "port": 1883,
-      "room": "Kuzzle/request",
-      "responseRoom": "Kuzzle/response"
+      "requestTopic": "Kuzzle/request",
+      "responseTopic": "Kuzzle/response",
+      "allowPubSub": false
     }
   },
   "directories": {

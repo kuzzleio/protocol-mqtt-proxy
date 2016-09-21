@@ -57,7 +57,7 @@ describe('plugin implementation', function () {
 
   describe('#init', function () {
     var
-      config = {port: 1234, room: 'aRoom'},
+      config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'responseTopic'},
       context = {foo: 'bar'};
 
     it('should throw an error if no "config" argument has been provided', function (done) {
@@ -77,7 +77,7 @@ describe('plugin implementation', function () {
       should(plugin.isDummy).be.true();
     });
 
-    it('should fallback to dummy-mode if no room configuration has been provided', function () {
+    it('should fallback to dummy-mode if no topic configuration has been provided', function () {
       var ret = plugin.init({port: 1234}, {}, false);
 
       should(ret).be.false();
@@ -111,7 +111,7 @@ describe('plugin implementation', function () {
 
   describe('#setup', function () {
     var
-      config = {port: 1234, room: 'aRoom'},
+      config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'responseTopic'},
       context = {foo: 'bar'};
 
     it('should bind functions to broker appropriate events', function () {
@@ -132,7 +132,7 @@ describe('plugin implementation', function () {
 
   describe('#broadcast', function () {
     var
-      config = {port: 1234, room: 'aRoom'},
+      config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'responseTopic'},
       context = {foo: 'bar'};
 
     it('should do nothing if in dummy-mode', function () {
@@ -156,7 +156,7 @@ describe('plugin implementation', function () {
 
   describe('#notify', function () {
     var
-      config = {port: 1234, room: 'aRoom'},
+      config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'topic'},
       context = {foo: 'bar'};
 
     it('should do nothing if in dummy-mode', function () {
@@ -195,7 +195,7 @@ describe('plugin implementation', function () {
 
   describe('#onConnection', function () {
     var
-      config = {port: 1234, room: 'aRoom'},
+      config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'responseTopic'},
       newConnectionSpy = sinon.stub().resolves({a: 'connection'}),
       context = {accessors: {router: {newConnection: newConnectionSpy}}};
 
@@ -226,7 +226,7 @@ describe('plugin implementation', function () {
 
   describe('#onDisconnection', function () {
     var
-      config = {port: 1234, room: 'aRoom'},
+      config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'response'},
       removeConnectionSpy = sinon.stub().resolves({a: 'connection'}),
       context = {accessors: {router: {removeConnection: removeConnectionSpy}}};
 
@@ -261,7 +261,7 @@ describe('plugin implementation', function () {
 
   describe('#onMessage', function () {
     var
-      config = {port: 1234, responseRoom: 'foo', room: 'bar'},
+      config = {port: 1234, responseTopic: 'foo', requestTopic: 'bar'},
       fakeRequestObject = {aRequest: 'Object', requestId: 'foobar'},
       requestObjectStub = sinon.stub().returns(fakeRequestObject),
       executeStub = sinon.stub().callsArgWith(2, null, fakeRequestObject),
@@ -272,7 +272,7 @@ describe('plugin implementation', function () {
       executeStub.reset();
     });
 
-    it('should do nothing if the packet has not the good room', function () {
+    it('should do nothing if the packet has not the good topic', function () {
       plugin.init(config, context, false);
       plugin.onMessage({fake: 'packet'}, {id: goodId});
       should(executeStub.callCount).be.eql(0);
@@ -284,7 +284,7 @@ describe('plugin implementation', function () {
       plugin.connectionPool = {
         [goodId]: {connection: 'aConnection', alive: true}
       };
-      plugin.onMessage({topic: config.room, payload: 'myPayload'}, {id: badId});
+      plugin.onMessage({topic: config.requestTopic, payload: 'myPayload'}, {id: badId});
       should(executeStub.callCount).be.eql(0);
       should(requestObjectStub.callCount).be.eql(0);
     });
@@ -297,7 +297,7 @@ describe('plugin implementation', function () {
         [goodId]: {connection: 'aConnection', alive: true}
       };
 
-      plugin.onMessage({topic: config.room, payload: new Buffer('"aPayload"')}, {id: goodId, forward: forwardStub});
+      plugin.onMessage({topic: config.requestTopic, payload: new Buffer('"aPayload"')}, {id: goodId, forward: forwardStub});
       should(requestObjectStub.callCount).be.eql(1);
       should(requestObjectStub.firstCall.args).be.deepEqual(['aPayload', {}, 'mqtt']);
       should(executeStub.callCount).be.eql(1);
@@ -305,11 +305,69 @@ describe('plugin implementation', function () {
       should(executeStub.firstCall.args[1]).be.eql('aConnection');
       should(executeStub.firstCall.args[2]).be.Function();
       should(forwardStub.callCount).be.eql(1);
-      should(forwardStub.firstCall.args[0]).be.eql(config.responseRoom);
+      should(forwardStub.firstCall.args[0]).be.eql(config.responseTopic);
       should(forwardStub.firstCall.args[1]).be.eql(JSON.stringify(fakeRequestObject));
       should(forwardStub.firstCall.args[2]).be.deepEqual({});
-      should(forwardStub.firstCall.args[3]).be.eql(config.responseRoom);
+      should(forwardStub.firstCall.args[3]).be.eql(config.responseTopic);
       should(forwardStub.firstCall.args[4]).be.eql(0);
+    });
+  });
+
+  describe('#topic authorizations', () => {
+    var config;
+
+    beforeEach(() => {
+      config = {port: 1234, responseTopic: 'foo', requestTopic: 'bar'};
+    });
+
+    it('should authorize publishing only to the request topic if allowPubSub is false', () => {
+      config.allowPubSub = false;
+      plugin.init(config, {}, false);
+
+      plugin.server.authorizePublish(null, config.requestTopic, null, (err, res) => {
+        should(res).be.true();
+      });
+
+      plugin.server.authorizePublish(null, config.responseTopic, null, (err, res) => {
+        should(res).be.false();
+      });
+
+      plugin.server.authorizePublish(null, 'foobar', null, (err, res) => {
+        should(res).be.false();
+      });
+    });
+
+    it('should deny publishing only to the response topic if allowPubSub is true', () => {
+      config.allowPubSub = true;
+      plugin.init(config, {}, false);
+
+      plugin.server.authorizePublish(null, config.requestTopic, null, (err, res) => {
+        should(res).be.true();
+      });
+
+      plugin.server.authorizePublish(null, config.responseTopic, null, (err, res) => {
+        should(res).be.false();
+      });
+
+      plugin.server.authorizePublish(null, 'foobar', null, (err, res) => {
+        should(res).be.true();
+      });
+    });
+
+    it('should deny subscribing to the request topic', () => {
+      plugin.init(config, {}, false);
+
+      plugin.server.authorizeSubscribe(null, config.requestTopic, (err, res) => {
+        should(res).be.false();
+      });
+
+      plugin.server.authorizeSubscribe(null, config.responseTopic, (err, res) => {
+        should(res).be.true();
+      });
+
+      plugin.server.authorizeSubscribe(null, 'foobar', (err, res) => {
+        should(res).be.true();
+      });
     });
   });
 });
