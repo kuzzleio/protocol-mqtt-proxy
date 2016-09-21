@@ -1,27 +1,27 @@
 {
   "name": "kuzzle-plugin-mqtt",
   "author": "The Kuzzle Team <support@kuzzle.io>",
-  "version": "1.0.3",
+  "version": "2.0.0",
   "description": "Kuzzle protocol plugin MQTT",
   "main": "./lib/index.js",
   "scripts": {
     "test": "npm run --silent lint && npm run unit-testing --coverage",
     "unit-testing": "istanbul test _mocha",
-    "lint": "eslint --max-warnings=0 ./lib ./bin ./test ./features"
+    "lint": "eslint --max-warnings=0 ./lib ./test"
   },
   "pluginInfo": {
     "defaultConfig": {
-      "loadedBy": "server",
       "port": 1883,
-      "room": "Kuzzle"
+      "requestTopic": "Kuzzle/request",
+      "responseTopic": "Kuzzle/response",
+      "allowPubSub": false
     }
   },
   "directories": {
     "lib": "lib"
   },
   "dependencies": {
-    "async": "^2.0.0-rc.6",
-    "mosca": "^2.0.1"
+    "mosca": "^2.1.0"
   },
   "repository": {
     "type": "git",
@@ -29,17 +29,17 @@
   },
   "devDependencies": {
     "codecov": "^1.0.1",
-    "eslint": "3.0.1",
-    "istanbul": "0.4.4",
+    "eslint": "3.4.0",
+    "istanbul": "0.4.5",
     "istanbul-middleware": "0.2.2",
-    "mocha": "2.5.3",
+    "mocha": "3.0.2",
     "mock-require": "^1.3.0",
     "proxyquire": "^1.7.10",
     "rewire": "2.5.2",
-    "should": "9.0.2",
+    "should": "11.1.0",
     "should-sinon": "0.0.5",
-    "sinon": "1.17.4",
-    "sinon-as-promised": "^4.0.0"
+    "sinon": "1.17.5",
+    "sinon-as-promised": "^4.0.2"
   },
   "engines": {
     "node": ">= 4.4.5",
