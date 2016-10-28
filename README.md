@@ -1,6 +1,5 @@
 [![Build Status](https://travis-ci.org/kuzzleio/kuzzle-plugin-mqtt.svg?branch=master)](https://travis-ci.org/kuzzleio/kuzzle-plugin-mqtt) [![codecov.io](http://codecov.io/github/kuzzleio/kuzzle-plugin-mqtt/coverage.svg?branch=master)](http://codecov.io/github/kuzzleio/kuzzle-plugin-mqtt?branch=master) [![Dependency Status](https://david-dm.org/kuzzleio/kuzzle-plugin-mqtt.svg)](https://david-dm.org/kuzzleio/kuzzle-plugin-mqtt)
 
-![logo](https://camo.githubusercontent.com/e40bd0387af8440d3276c9fdea60650d9f787482/687474703a2f2f6b757a7a6c652e696f2f67756964652f696d616765732f6b757a7a6c652e737667)
 
 # Table of Contents
 
