@@ -1,7 +1,8 @@
 var
   should = require('should'),
   proxyquire = require('proxyquire'),
-  sinon = require('sinon');
+  sinon = require('sinon'),
+  sandbox = sinon.sandbox.create();
 
 require('sinon-as-promised')(Promise);
 
@@ -47,6 +48,10 @@ describe('plugin implementation', function () {
     onSpy.reset();
     forwardSpy.reset();
     publishSpy.reset();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
   });
 
   describe('#general', function () {
@@ -368,6 +373,20 @@ describe('plugin implementation', function () {
       plugin.server.authorizeSubscribe(null, 'foobar', (err, res) => {
         should(res).be.true();
       });
+    });
+  });
+
+  describe('#disconnect', () => {
+    it('should call onDisconnection', () => {
+      sandbox.stub(plugin, 'onDisconnection');
+
+      plugin.disconnect('id');
+
+      should(plugin.onDisconnection)
+        .be.calledOnce()
+        .be.calledWithMatch({
+          id: 'id'
+        });
     });
   });
 });
