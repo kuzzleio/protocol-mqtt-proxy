@@ -217,7 +217,15 @@ describe('plugin implementation', function () {
       setTimeout(() => {
         try {
           should(plugin.connectionPool).be.deepEqual({
-            [goodId]: {connection: {a: 'connection'}, alive: true}
+            [goodId]: {
+              alive: true,
+              connection: {
+                a: 'connection'
+              },
+              client: {
+                id: goodId
+              }
+            }
           });
 
           done();
@@ -377,16 +385,18 @@ describe('plugin implementation', function () {
   });
 
   describe('#disconnect', () => {
-    it('should call onDisconnection', () => {
-      sandbox.stub(plugin, 'onDisconnection');
+    it('should close the client connection', () => {
+      plugin.connectionPool.id = {
+        client: {
+          close: sinon.spy()
+        }
+      };
 
       plugin.disconnect('id');
 
-      should(plugin.onDisconnection)
+      should(plugin.connectionPool.id.client.close)
         .be.calledOnce()
-        .be.calledWithMatch({
-          id: 'id'
-        });
+        .be.calledWith(undefined, 'CLOSEDONREQUEST');
     });
   });
 });
