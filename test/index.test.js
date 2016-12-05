@@ -261,7 +261,7 @@ describe('plugin implementation', function () {
       config = {port: 1234, responseTopic: 'foo', requestTopic: 'bar'},
       fakeRequest = {aRequest: 'Object', requestId: 'foobar'},
       requestStub = sinon.stub().returns(fakeRequest),
-      executeStub = sinon.stub().callsArgWith(1, null, fakeRequest),
+      executeStub = sinon.stub().callsArgWith(1, fakeRequest),
       context = {constructors: {Request: requestStub}, accessors: {router: {execute: executeStub}}};
 
     beforeEach(() => {
