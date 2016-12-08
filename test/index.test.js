@@ -1,9 +1,9 @@
-var
+'use strict';
+
+const
   should = require('should'),
   proxyquire = require('proxyquire'),
   sinon = require('sinon');
-
-require('sinon-as-promised')(Promise);
 
 describe('plugin implementation', function () {
   var
@@ -17,9 +17,8 @@ describe('plugin implementation', function () {
     badId = 'aBadId',
     goodId = 'aGoodId',
     goodChannel = 'aGoodChannel';
-    
+
   before(function () {
-    // stubbing socket.io
     Plugin = proxyquire('../lib/index', {
       'mosca': {
         Server: function(config) {
@@ -178,10 +177,11 @@ describe('plugin implementation', function () {
         [goodId]: {connection: 'aConnection', alive: true}
       };
       plugin.notify({
-        id: goodId,
+        connectionId: goodId,
         channels: [goodChannel],
         payload: {a: 'payload'}
       });
+
       should(forwardSpy.callCount).be.eql(1);
       should(forwardSpy.firstCall.args).be.deepEqual([
         goodChannel,
@@ -196,7 +196,7 @@ describe('plugin implementation', function () {
   describe('#onConnection', function () {
     var
       config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'responseTopic'},
-      newConnectionSpy = sinon.stub().resolves({a: 'connection'}),
+      newConnectionSpy = sinon.stub().returns(Promise.resolve({a: 'connection'})),
       context = {accessors: {router: {newConnection: newConnectionSpy}}};
 
     beforeEach(() => {
@@ -204,7 +204,6 @@ describe('plugin implementation', function () {
     });
 
     it('should call router newConnection and treat its result', function (done) {
-      this.timeout(100);
       plugin.init(config, context, false);
       plugin.onConnection({
         id: goodId
@@ -227,7 +226,7 @@ describe('plugin implementation', function () {
   describe('#onDisconnection', function () {
     var
       config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'response'},
-      removeConnectionSpy = sinon.stub().resolves({a: 'connection'}),
+      removeConnectionSpy = sinon.stub().returns(Promise.resolve({a: 'connection'})),
       context = {accessors: {router: {removeConnection: removeConnectionSpy}}};
 
     beforeEach(() => {
@@ -235,7 +234,6 @@ describe('plugin implementation', function () {
     });
 
     it('should call router removeConnection and remove connection', function () {
-      this.timeout(100);
       plugin.init(config, context, false);
       plugin.connectionPool = {
         [goodId]: {connection: 'aConnection', alive: true}
@@ -247,7 +245,6 @@ describe('plugin implementation', function () {
     });
 
     it('should do nothing if id does not exist', function () {
-      this.timeout(100);
       plugin.init(config, context, false);
       plugin.connectionPool = {
         [goodId]: {connection: 'aConnection', alive: true}
@@ -262,13 +259,13 @@ describe('plugin implementation', function () {
   describe('#onMessage', function () {
     var
       config = {port: 1234, responseTopic: 'foo', requestTopic: 'bar'},
-      fakeRequestObject = {aRequest: 'Object', requestId: 'foobar'},
-      requestObjectStub = sinon.stub().returns(fakeRequestObject),
-      executeStub = sinon.stub().callsArgWith(2, null, fakeRequestObject),
-      context = {constructors: {RequestObject: requestObjectStub}, accessors: {router: {execute: executeStub}}};
+      fakeRequest = {aRequest: 'Object', requestId: 'foobar'},
+      requestStub = sinon.stub().returns(fakeRequest),
+      executeStub = sinon.stub().callsArgWith(1, fakeRequest),
+      context = {constructors: {Request: requestStub}, accessors: {router: {execute: executeStub}}};
 
     beforeEach(() => {
-      requestObjectStub.reset();
+      requestStub.reset();
       executeStub.reset();
     });
 
@@ -276,7 +273,7 @@ describe('plugin implementation', function () {
       plugin.init(config, context, false);
       plugin.onMessage({fake: 'packet'}, {id: goodId});
       should(executeStub.callCount).be.eql(0);
-      should(requestObjectStub.callCount).be.eql(0);
+      should(requestStub.callCount).be.eql(0);
     });
 
     it('should do nothing if the client is unknown', function () {
@@ -286,11 +283,11 @@ describe('plugin implementation', function () {
       };
       plugin.onMessage({topic: config.requestTopic, payload: 'myPayload'}, {id: badId});
       should(executeStub.callCount).be.eql(0);
-      should(requestObjectStub.callCount).be.eql(0);
+      should(requestStub.callCount).be.eql(0);
     });
 
     it('should execute the request if client and packet are ok', function () {
-      var forwardStub = sinon.stub();
+      let forwardStub = sinon.stub();
 
       plugin.init(config, context, false);
       plugin.connectionPool = {
@@ -298,15 +295,14 @@ describe('plugin implementation', function () {
       };
 
       plugin.onMessage({topic: config.requestTopic, payload: new Buffer('"aPayload"')}, {id: goodId, forward: forwardStub});
-      should(requestObjectStub.callCount).be.eql(1);
-      should(requestObjectStub.firstCall.args).be.deepEqual(['aPayload', {}, 'mqtt']);
+      should(requestStub.callCount).be.eql(1);
+      should(requestStub.firstCall.args).be.deepEqual(['aPayload', 'aConnection']);
       should(executeStub.callCount).be.eql(1);
-      should(executeStub.firstCall.args[0]).be.deepEqual(fakeRequestObject);
-      should(executeStub.firstCall.args[1]).be.eql('aConnection');
-      should(executeStub.firstCall.args[2]).be.Function();
+      should(executeStub.firstCall.args[0]).be.deepEqual(fakeRequest);
+      should(executeStub.firstCall.args[1]).be.Function();
       should(forwardStub.callCount).be.eql(1);
       should(forwardStub.firstCall.args[0]).be.eql(config.responseTopic);
-      should(forwardStub.firstCall.args[1]).be.eql(JSON.stringify(fakeRequestObject));
+      should(forwardStub.firstCall.args[1]).be.eql(JSON.stringify(fakeRequest));
       should(forwardStub.firstCall.args[2]).be.deepEqual({});
       should(forwardStub.firstCall.args[3]).be.eql(config.responseTopic);
       should(forwardStub.firstCall.args[4]).be.eql(0);
