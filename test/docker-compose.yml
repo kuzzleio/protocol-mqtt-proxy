@@ -1,0 +1,28 @@
+version: '2'
+
+services:
+  proxy:
+    image: kuzzleio/proxy:develop
+    volumes:
+      - ..:/tmp/kuzzle-plugin-mqtt
+    environment:
+      - proxy_protocolPlugins__kuzzle-plugin-mqtt__path=/tmp/kuzzle-plugin-mqtt
+    ports:
+      - "7511-7513:7511-7513"
+
+  kuzzle:
+    image: kuzzleio/kuzzle:develop
+    environment:
+      - kuzzle_services__db__host=elasticsearch
+      - kuzzle_services__internalCache__node__host=redis
+      - kuzzle_services__memoryStorage__node__host=redis
+      - kuzzle_services__proxyBroker__host=proxy
+      - FEATURE_COVERAGE=1
+
+  redis:
+    image: redis:3.2
+
+  elasticsearch:
+    image: elasticsearch:2
+
+

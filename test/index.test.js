@@ -3,7 +3,8 @@
 const
   should = require('should'),
   proxyquire = require('proxyquire'),
-  sinon = require('sinon');
+  sinon = require('sinon'),
+  sandbox = sinon.sandbox.create();
 
 describe('plugin implementation', function () {
   var
@@ -46,6 +47,10 @@ describe('plugin implementation', function () {
     onSpy.reset();
     forwardSpy.reset();
     publishSpy.reset();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
   });
 
   describe('#general', function () {
@@ -211,7 +216,15 @@ describe('plugin implementation', function () {
       setTimeout(() => {
         try {
           should(plugin.connectionPool).be.deepEqual({
-            [goodId]: {connection: {a: 'connection'}, alive: true}
+            [goodId]: {
+              alive: true,
+              connection: {
+                a: 'connection'
+              },
+              client: {
+                id: goodId
+              }
+            }
           });
 
           done();
@@ -364,6 +377,22 @@ describe('plugin implementation', function () {
       plugin.server.authorizeSubscribe(null, 'foobar', (err, res) => {
         should(res).be.true();
       });
+    });
+  });
+
+  describe('#disconnect', () => {
+    it('should close the client connection', () => {
+      plugin.connectionPool.id = {
+        client: {
+          close: sinon.spy()
+        }
+      };
+
+      plugin.disconnect('id');
+
+      should(plugin.connectionPool.id.client.close)
+        .be.calledOnce()
+        .be.calledWith(undefined, 'CLOSEDONREQUEST');
     });
   });
 });
