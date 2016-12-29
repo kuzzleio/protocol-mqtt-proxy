@@ -4,8 +4,7 @@ const
   should = require('should'),
   Promise = require('bluebird'),
   proxyquire = require('proxyquire'),
-  sinon = require('sinon'),
-  sandbox = sinon.sandbox.create();
+  sinon = require('sinon');
 
 describe('mqtt', () => {
   const
@@ -81,7 +80,7 @@ describe('mqtt', () => {
       return pub('client', 'no', 'payload')
         .then(response => {
           should(response).be.false();
-          return pub('client', plugin.config.requestTopic, 'payload')
+          return pub('client', plugin.config.requestTopic, 'payload');
         })
         .then(response => {
           should(response).be.true();
@@ -153,7 +152,7 @@ describe('mqtt', () => {
         })
         .then(response => {
           should(response).be.true();
-        })
+        });
     });
   });
 
@@ -208,7 +207,7 @@ describe('mqtt', () => {
           channels: []
         };
 
-      plugin.connectionsById['connectionId'] = client;
+      plugin.connectionsById.connectionId = client;
 
       for (let i = 0; i < 3; i++) {
         data.channels.push('topic_' + i);
@@ -289,7 +288,7 @@ describe('mqtt', () => {
 
       should(context.accessors.router.execute)
         .be.calledOnce()
-        .be.calledWith(request)
+        .be.calledWith(request);
 
       const cb = context.accessors.router.execute.firstCall.args[1];
       cb({content: 'response'});
