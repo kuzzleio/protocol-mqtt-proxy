@@ -2,397 +2,317 @@
 
 const
   should = require('should'),
+  Promise = require('bluebird'),
   proxyquire = require('proxyquire'),
-  sinon = require('sinon'),
-  sandbox = sinon.sandbox.create();
+  sinon = require('sinon');
 
-describe('plugin implementation', function () {
-  var
-    Plugin,
-    plugin,
-    setPort,
-    setBackend,
-    onSpy = sinon.spy(),
-    forwardSpy = sinon.spy(),
-    publishSpy = sinon.spy(),
-    badId = 'aBadId',
-    goodId = 'aGoodId',
-    goodChannel = 'aGoodChannel';
-
-  before(function () {
+describe('mqtt', () => {
+  const
+    ServerMock = function (config) {
+      this.config = config;
+      this.on = sinon.spy();
+      this.publish = sinon.spy();
+    },
     Plugin = proxyquire('../lib/index', {
-      'mosca': {
-        Server: function(config) {
-          setPort = config.port;
-          setBackend = config.backend;
-
-          return {
-            on: onSpy,
-            publish: publishSpy,
-            clients: {
-              [goodId]: {
-                forward: forwardSpy
-              }
-            }
-          };
-        }
-      }
+      mosca: {Server: ServerMock}
     });
-  });
 
-  beforeEach(function () {
-    setPort = -1;
-    setBackend = null;
+  let
+    client,
+    context,
+    plugin;
+
+  beforeEach(() => {
+    client = {
+      id: 'clientId',
+      close: sinon.spy(),
+      connection: {
+        stream: {
+          remoteAddress: 'remoteAddress'
+        }
+      },
+      forward: sinon.spy()
+    };
+    context = {
+      accessors: {
+        router: {
+          execute: sinon.spy(),
+          newConnection: sinon.spy(),
+          removeConnection: sinon.spy()
+        }
+      },
+      constructors: {
+        ClientConnection: sinon.spy(function () {
+          this.id = 'clientConnectionId';     // eslint-disable-line no-invalid-this
+        }),
+        Request: sinon.stub().returns({a: 'request'})
+      },
+      log: {
+        info: sinon.spy(),
+        error: sinon.spy()
+      }
+    };
+
     plugin = new Plugin();
-    onSpy.reset();
-    forwardSpy.reset();
-    publishSpy.reset();
+    plugin.init(undefined, context);
   });
 
-  afterEach(() => {
-    sandbox.restore();
-  });
+  describe('#constructor', () => {
+    it('should take the given config', () => {
+      const config = {
+        port: 1234,
+        requestTopic: 'reqTopic',
+        responseTopic: 'respTopic',
+        allowPubSub: 'allowPubsub'
+      };
 
-  describe('#general', function () {
-    it('should expose an init function', function () {
-      should(plugin.init).be.a.Function();
+      plugin.init(config);
+
+      should(plugin.config)
+        .match(config);
+    });
+
+    it('should properly set server authorizations', () => {
+      let
+        pub = Promise.promisify(plugin.server.authorizePublish.bind(plugin)),
+        sub = Promise.promisify(plugin.server.authorizeSubscribe.bind(plugin));
+
+      return pub('client', 'no', 'payload')
+        .then(response => {
+          should(response).be.false();
+          return pub('client', plugin.config.requestTopic, 'payload');
+        })
+        .then(response => {
+          should(response).be.true();
+
+          plugin.init({ allowPubSub: true }, context);
+          pub = Promise.promisify(plugin.server.authorizePublish.bind(plugin));
+
+          return pub('client', plugin.config.responseTopic, 'payload');
+        })
+        .then(response => {
+          should(response).be.false();
+
+          return pub('client', 'no#wildcard', 'payload');
+        })
+        .then(response => {
+          should(response).be.false();
+
+          return pub('client', 'no+wildcard', 'payload');
+        })
+        .then(response => {
+          should(response).be.false();
+
+          return pub('client', plugin.config.responseTopic, 'payload');
+        })
+        .then(response => {
+          should(response).be.false();
+
+          return pub('client', 'valid', 'payload');
+        })
+        .then(response => {
+          should(response).be.true();
+
+          return pub('client', plugin.config.requestTopic, 'payload');
+        })
+        .then(response => {
+          should(response).be.false();
+
+          return pub('client', 'something#no', 'payload');
+        })
+        .then(response => {
+          should(response).be.false();
+
+          return pub('client', 'no+wildcard', 'payload');
+        })
+        .then(response => {
+          should(response).be.false();
+
+          return pub('client', 'other', 'payload');
+        })
+        .then(response => {
+          should(response).be.true();
+
+          return sub('client', plugin.config.requestTopic);
+        })
+        .then(response => {
+          should(response).be.false();
+
+          return sub('client', 'no#wildcard');
+        })
+        .then(response => {
+          should(response).be.false();
+
+          return sub('client', 'no+wildcard');
+        })
+        .then(response => {
+          should(response).be.false();
+
+          return sub('client', 'imok');
+        })
+        .then(response => {
+          should(response).be.true();
+        });
     });
   });
 
-  describe('#init', function () {
-    var
-      config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'responseTopic'},
-      context = {foo: 'bar'};
-
-    it('should throw an error if no "config" argument has been provided', function (done) {
-      try {
-        plugin.init(undefined, {}, true);
-        done(new Error('Expected a throw, but nothing happened'));
-      }
-      catch (e) {
-        done();
-      }
-    });
-
-    it('should fallback to dummy-mode if no port configuration has been provided', function () {
-      var ret = plugin.init({}, {}, false);
-
-      should(ret).be.false();
-      should(plugin.isDummy).be.true();
-    });
-
-    it('should fallback to dummy-mode if no topic configuration has been provided', function () {
-      var ret = plugin.init({port: 1234}, {}, false);
-
-      should(ret).be.false();
-      should(plugin.isDummy).be.true();
-    });
-
-    it('should set internal properties correctly', function () {
-      var
-        ret = plugin.init(config, context, true);
-
-      should(ret).be.eql(plugin);
-      should(plugin.isDummy).be.true();
-      should(plugin.config).be.eql(config);
-      should(plugin.context).be.eql(context);
-      should(setPort).be.eql(-1);
-      should(setBackend).be.null();
-    });
-
-    it('should setup a mosca mqtt broker if not in dummy mode', function () {
-      var ret = plugin.init(config, context, false);
-
-      should(ret).be.eql(plugin);
-      should(plugin.isDummy).be.false();
-      should(plugin.config).be.eql(config);
-      should(plugin.context).be.eql(context);
-      should(setPort).be.eql(1234);
-      should(onSpy.firstCall.args[0]).be.eql('ready');
-      should(onSpy.firstCall.args[1]).be.Function();
-    });
-  });
-
-  describe('#setup', function () {
-    var
-      config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'responseTopic'},
-      context = {foo: 'bar'};
-
-    it('should bind functions to broker appropriate events', function () {
-      plugin.init(config, context, false);
+  describe('#setup', () => {
+    it('should attach events', () => {
       plugin.setup();
-      should(onSpy.getCall(0).args[0]).be.eql('ready');
-      should(onSpy.getCall(0).args[1]).be.Function();
-      should(onSpy.getCall(1).args[0]).be.eql('clientConnected');
-      should(onSpy.getCall(1).args[1]).be.Function();
-      should(onSpy.getCall(2).args[0]).be.eql('clientDisconnecting');
-      should(onSpy.getCall(2).args[1]).be.Function();
-      should(onSpy.getCall(3).args[0]).be.eql('clientDisconnected');
-      should(onSpy.getCall(3).args[1]).be.Function();
-      should(onSpy.getCall(4).args[0]).be.eql('published');
-      should(onSpy.getCall(4).args[1]).be.Function();
+
+      should(context.log.info)
+        .be.calledOnce();
+
+      should(plugin.server.on)
+        .have.callCount(5)
+        .be.calledWith('clientConnected')
+        .be.calledWith('clientDisconnecting')
+        .be.calledWith('clientDisconnected')
+        .be.calledWith('published');
     });
   });
 
-  describe('#broadcast', function () {
-    var
-      config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'responseTopic'},
-      context = {foo: 'bar'};
-
-    it('should do nothing if in dummy-mode', function () {
-      plugin.init({}, {}, true);
-      should(plugin.broadcast({})).be.false();
-    });
-
-    it('should call forward if all conditions are met', function () {
-      plugin.init(config, context, false);
-      plugin.connectionPool = {
-        [goodId]: {connection: 'aConnection', alive: true}
+  describe('#broadcast', () => {
+    it('should publish to all channeld', () => {
+      const data = {
+        payload: 'payload',
+        channels: []
       };
-      plugin.broadcast({
-        channels: [goodChannel],
-        payload: {a: 'payload'}
-      });
-      should(publishSpy.callCount).be.eql(1);
-      should(publishSpy.firstCall.args[0]).be.deepEqual({topic: goodChannel, payload: JSON.stringify({a: 'payload'})});
-    });
-  });
 
-  describe('#notify', function () {
-    var
-      config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'topic'},
-      context = {foo: 'bar'};
+      for (let i = 0; i < 5; i++) {
+        data.channels.push('topic_' + i);
+      }
 
-    it('should do nothing if in dummy-mode', function () {
-      plugin.init({}, {}, true);
-      should(plugin.notify({})).be.false();
-    });
+      plugin.broadcast(data);
 
-    it('should do nothing if id does not exist', function () {
-      plugin.init(config, context, false);
-      plugin.notify({
-        id: badId
-      });
-      should(forwardSpy.callCount).be.eql(0);
-    });
+      should(plugin.server.publish)
+        .have.callCount(5);
 
-    it('should call forward if all conditions are met', function () {
-      plugin.init(config, context, false);
-      plugin.connectionPool = {
-        [goodId]: {connection: 'aConnection', alive: true}
-      };
-      plugin.notify({
-        connectionId: goodId,
-        channels: [goodChannel],
-        payload: {a: 'payload'}
-      });
-
-      should(forwardSpy.callCount).be.eql(1);
-      should(forwardSpy.firstCall.args).be.deepEqual([
-        goodChannel,
-        JSON.stringify({a: 'payload'}),
-        {},
-        goodChannel,
-        0
-      ]);
-    });
-  });
-
-  describe('#onConnection', function () {
-    var
-      config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'responseTopic'},
-      newConnectionSpy = sinon.stub().returns(Promise.resolve({a: 'connection'})),
-      context = {accessors: {router: {newConnection: newConnectionSpy}}};
-
-    beforeEach(() => {
-      newConnectionSpy.reset();
-    });
-
-    it('should call router newConnection and treat its result', function (done) {
-      plugin.init(config, context, false);
-      plugin.onConnection({
-        id: goodId
-      });
-      setTimeout(() => {
-        try {
-          should(plugin.connectionPool).be.deepEqual({
-            [goodId]: {
-              alive: true,
-              connection: {
-                a: 'connection'
-              },
-              client: {
-                id: goodId
-              }
-            }
+      for (let i = 0; i < 5; i++) {
+        should(plugin.server.publish)
+          .be.calledWithMatch({
+            topic: 'topic_' + i,
+            payload: '"payload"'
           });
-
-          done();
-        }
-        catch (e) {
-          done(e);
-        }
-      }, 20);
+      }
     });
   });
 
-  describe('#onDisconnection', function () {
-    var
-      config = {port: 1234, requestTopic: 'aTopic', responseTopic: 'response'},
-      removeConnectionSpy = sinon.stub().returns(Promise.resolve({a: 'connection'})),
-      context = {accessors: {router: {removeConnection: removeConnectionSpy}}};
+  describe('#notify', () => {
+    it('should notify the target client', () => {
+      const
+        data = {
+          connectionId: 'connectionId',
+          payload: 'payload',
+          channels: []
+        };
 
-    beforeEach(() => {
-      removeConnectionSpy.reset();
-    });
+      plugin.connectionsById.connectionId = client;
 
-    it('should call router removeConnection and remove connection', function () {
-      plugin.init(config, context, false);
-      plugin.connectionPool = {
-        [goodId]: {connection: 'aConnection', alive: true}
-      };
-      plugin.onDisconnection({
-        id: goodId
-      });
-      should(plugin.connectionPool).be.deepEqual({});
-    });
+      for (let i = 0; i < 3; i++) {
+        data.channels.push('topic_' + i);
+      }
 
-    it('should do nothing if id does not exist', function () {
-      plugin.init(config, context, false);
-      plugin.connectionPool = {
-        [goodId]: {connection: 'aConnection', alive: true}
-      };
-      plugin.onDisconnection({
-        id: badId
-      });
-      should(plugin.connectionPool).be.deepEqual({[goodId]: {connection: 'aConnection', alive: true}});
+      plugin.notify(data);
+
+      should(client.forward)
+        .be.calledThrice();
+
+      for (let i = 0; i < 3; i++) {
+        should(client.forward)
+          .be.calledWithMatch('topic_' + i, '"payload"', {}, 'topic_' + i, 0);
+      }
     });
   });
 
-  describe('#onMessage', function () {
-    var
-      config = {port: 1234, responseTopic: 'foo', requestTopic: 'bar'},
-      fakeRequest = {aRequest: 'Object', requestId: 'foobar'},
-      requestStub = sinon.stub().returns(fakeRequest),
-      executeStub = sinon.stub().callsArgWith(1, fakeRequest),
-      context = {constructors: {Request: requestStub}, accessors: {router: {execute: executeStub}}};
+  describe('#onConnection', () => {
+    it('should close the client connection if it cannot register it', () => {
+      const error = new Error('test');
+      context.constructors.ClientConnection = sinon.stub().throws(error);
 
-    beforeEach(() => {
-      requestStub.reset();
-      executeStub.reset();
+      plugin.onConnection(client);
+
+      should(context.log.error)
+        .be.calledOnce()
+        .be.calledWith('[plugin-mqtt] Unable to register new connection\n%s', error.stack);
+
+      should(client.close)
+        .be.calledOnce();
     });
 
-    it('should do nothing if the packet has not the good topic', function () {
-      plugin.init(config, context, false);
-      plugin.onMessage({fake: 'packet'}, {id: goodId});
-      should(executeStub.callCount).be.eql(0);
-      should(requestStub.callCount).be.eql(0);
-    });
+    it('should register the connection', () => {
+      plugin.onConnection(client);
 
-    it('should do nothing if the client is unknown', function () {
-      plugin.init(config, context, false);
-      plugin.connectionPool = {
-        [goodId]: {connection: 'aConnection', alive: true}
-      };
-      plugin.onMessage({topic: config.requestTopic, payload: 'myPayload'}, {id: badId});
-      should(executeStub.callCount).be.eql(0);
-      should(requestStub.callCount).be.eql(0);
-    });
-
-    it('should execute the request if client and packet are ok', function () {
-      let forwardStub = sinon.stub();
-
-      plugin.init(config, context, false);
-      plugin.connectionPool = {
-        [goodId]: {connection: 'aConnection', alive: true}
-      };
-
-      plugin.onMessage({topic: config.requestTopic, payload: new Buffer('"aPayload"')}, {id: goodId, forward: forwardStub});
-      should(requestStub.callCount).be.eql(1);
-      should(requestStub.firstCall.args).be.deepEqual(['aPayload', 'aConnection']);
-      should(executeStub.callCount).be.eql(1);
-      should(executeStub.firstCall.args[0]).be.deepEqual(fakeRequest);
-      should(executeStub.firstCall.args[1]).be.Function();
-      should(forwardStub.callCount).be.eql(1);
-      should(forwardStub.firstCall.args[0]).be.eql(config.responseTopic);
-      should(forwardStub.firstCall.args[1]).be.eql(JSON.stringify(fakeRequest));
-      should(forwardStub.firstCall.args[2]).be.deepEqual({});
-      should(forwardStub.firstCall.args[3]).be.eql(config.responseTopic);
-      should(forwardStub.firstCall.args[4]).be.eql(0);
+      should(context.accessors.router.newConnection)
+        .be.calledOnce()
+        .be.calledWith(context.constructors.ClientConnection.firstCall.returnValue);
+      should(plugin.connections.has(client)).be.true();
+      should(plugin.connections.get(client)).be.exactly('clientConnectionId');
+      should(plugin.connectionsById.clientConnectionId).be.exactly(client);
     });
   });
 
-  describe('#topic authorizations', () => {
-    var config;
+  describe('#onDisconnection', () => {
+    it('should remove the connection from the pool', () => {
+      plugin.connections.set(client, 'id');
+      plugin.connectionsById.id = client;
 
-    beforeEach(() => {
-      config = {port: 1234, responseTopic: 'foo', requestTopic: 'bar'};
+      plugin.onDisconnection(client);
+
+      should(context.accessors.router.removeConnection)
+        .be.calledOnce()
+        .be.calledWith('id');
+
+      should(plugin.connections.has(client)).be.false();
     });
+  });
 
-    it('should authorize publishing only to the request topic if allowPubSub is false', () => {
-      config.allowPubSub = false;
-      plugin.init(config, {}, false);
+  describe('#onMessage', () => {
+    it('should pass the request to the proxy and get the response back', () => {
+      plugin.connections.set(client, 'connectionId');
+      plugin.connectionsById.connectionId = client;
 
-      plugin.server.authorizePublish(null, config.requestTopic, null, (err, res) => {
-        should(res).be.true();
-      });
+      plugin.onMessage({
+        topic: plugin.config.requestTopic,
+        payload: '"payload"'
+      }, client);
 
-      plugin.server.authorizePublish(null, config.responseTopic, null, (err, res) => {
-        should(res).be.false();
-      });
+      should(context.constructors.Request)
+        .be.calledOnce()
+        .be.calledWith('payload', {
+          connectionId: 'connectionId',
+          protocol: plugin.protocol
+        });
 
-      plugin.server.authorizePublish(null, 'foobar', null, (err, res) => {
-        should(res).be.false();
-      });
-    });
+      const request = context.constructors.Request.firstCall.returnValue;
 
-    it('should deny publishing only to the response topic if allowPubSub is true', () => {
-      config.allowPubSub = true;
-      plugin.init(config, {}, false);
+      should(context.accessors.router.execute)
+        .be.calledOnce()
+        .be.calledWith(request);
 
-      plugin.server.authorizePublish(null, config.requestTopic, null, (err, res) => {
-        should(res).be.true();
-      });
+      const cb = context.accessors.router.execute.firstCall.args[1];
+      cb({content: 'response'});
 
-      plugin.server.authorizePublish(null, config.responseTopic, null, (err, res) => {
-        should(res).be.false();
-      });
-
-      plugin.server.authorizePublish(null, 'foobar', null, (err, res) => {
-        should(res).be.true();
-      });
-    });
-
-    it('should deny subscribing to the request topic', () => {
-      plugin.init(config, {}, false);
-
-      plugin.server.authorizeSubscribe(null, config.requestTopic, (err, res) => {
-        should(res).be.false();
-      });
-
-      plugin.server.authorizeSubscribe(null, config.responseTopic, (err, res) => {
-        should(res).be.true();
-      });
-
-      plugin.server.authorizeSubscribe(null, 'foobar', (err, res) => {
-        should(res).be.true();
-      });
+      should(client.forward)
+        .be.calledOnce()
+        .be.calledWithMatch(plugin.config.responseTopic, '"response"', {}, plugin.config.responseTopic, 0);
     });
   });
 
   describe('#disconnect', () => {
-    it('should close the client connection', () => {
-      plugin.connectionPool.id = {
-        client: {
-          close: sinon.spy()
-        }
-      };
+    it('should do nothing if the connection is not registered', () => {
+      plugin.disconnect('foo');
+    });
 
-      plugin.disconnect('id');
+    it('should close the connection', () => {
+      plugin.connectionsById.connectionId = client;
 
-      should(plugin.connectionPool.id.client.close)
+      plugin.disconnect('connectionId');
+      should(client.close)
         .be.calledOnce()
         .be.calledWith(undefined, 'CLOSEDONREQUEST');
     });
   });
+
 });
+
