@@ -62,7 +62,7 @@ var
 client.publish('Kuzzle/request', JSON.stringify({
   index: 'index',
   collection: 'collection',
-  controller: 'write',
+  controller: 'realtime',
   action: 'publish',
   requestId: 'some unique ID',
   body: { volatile: "message" }
@@ -84,7 +84,7 @@ client.on('message', (topic, raw) => {
 
 ## Using Kuzzle subscriptions
 
-Kuzzle allows to [subscribe](http://kuzzle.io/api-reference/#on) to messages and events using advanced filters.
+Kuzzle allows to [subscribe](http://kuzzle.io/api-reference/#subscribe) to messages and events using advanced filters.
 
 Each time a subscription request is performed by a client, this plugin creates a dedicated MQTT topic, named after the provided `channel` by Kuzzle.
 
@@ -94,7 +94,7 @@ Here are the steps to perform a Kuzzle subscription using this MQTT plugin:
 * Listen to the request's result to get the corresponding `channel` identifier
 * Subscribe to the MQTT topic named after this channel identifier
 
-Example using the [MQTT NodeJS module](https://www.npmjs.com/package/mqtt):
+Example using the [MQTT NodeJS package](https://www.npmjs.com/package/mqtt):
 
 ```js
 var
@@ -106,8 +106,8 @@ var
 client.publish('Kuzzle/request', JSON.stringify({
   index: 'index',
   collection: 'collection',
-  controller: 'subscribe',
-  action: 'on',
+  controller: 'realtime',
+  action: 'subscribe',
   requestId: 'some unique ID',
   body: {
     term: {
