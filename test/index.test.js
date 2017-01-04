@@ -85,7 +85,7 @@ describe('mqtt', () => {
         .then(response => {
           should(response).be.true();
 
-          plugin.init({ allowPubSub: true }, context);
+          plugin.config.allowPubSub = true;
           pub = Promise.promisify(plugin.server.authorizePublish.bind(plugin));
 
           return pub('client', plugin.config.responseTopic, 'payload');
@@ -113,12 +113,7 @@ describe('mqtt', () => {
         .then(response => {
           should(response).be.true();
 
-          return pub('client', plugin.config.requestTopic, 'payload');
-        })
-        .then(response => {
-          should(response).be.false();
-
-          return pub('client', 'something#no', 'payload');
+          return pub('client', 'no#wildcard', 'payload');
         })
         .then(response => {
           should(response).be.false();
