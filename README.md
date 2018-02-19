@@ -1,5 +1,9 @@
 [![Build Status](https://travis-ci.org/kuzzleio/kuzzle-plugin-mqtt.svg?branch=master)](https://travis-ci.org/kuzzleio/kuzzle-plugin-mqtt) [![codecov.io](http://codecov.io/github/kuzzleio/kuzzle-plugin-mqtt/coverage.svg?branch=master)](http://codecov.io/github/kuzzleio/kuzzle-plugin-mqtt?branch=master) [![Dependency Status](https://david-dm.org/kuzzleio/kuzzle-plugin-mqtt.svg)](https://david-dm.org/kuzzleio/kuzzle-plugin-mqtt)
 
+**:warning: WARNING! :warning: This plugin is for Kuzzle _proxy_, which is now deprecated.**
+
+**If you are looking for MQTT support for a fresh installation of Kuzzle, please refer to [this repository](https://github.com/kuzzleio/protocol-mqtt) instead.**
+
 
 # Table of Contents
 
